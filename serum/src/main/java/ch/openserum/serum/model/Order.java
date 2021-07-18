@@ -3,6 +3,7 @@ package ch.openserum.serum.model;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.p2p.solanaj.core.PublicKey;
 
 /**
@@ -11,6 +12,7 @@ import org.p2p.solanaj.core.PublicKey;
 @Builder
 @Getter
 @Setter
+@ToString
 public class Order {
 
     private long price;
@@ -27,20 +29,4 @@ public class Order {
     private SelfTradeBehaviorLayout selfTradeBehaviorLayout;
     private boolean buy;
 
-    @Override
-    public String toString() {
-        return "Order{" +
-                "price=" + price +
-                ", quantity=" + quantity +
-                ", clientOrderId=" + clientOrderId +
-                ", floatPrice=" + floatPrice +
-                ", floatQuantity=" + floatQuantity +
-                ", owner=" + owner +
-                ", maxQuoteQuantity=" + maxQuoteQuantity +
-                ", clientId=" + clientId +
-                ", orderTypeLayout=" + orderTypeLayout +
-                ", selfTradeBehaviorLayout=" + selfTradeBehaviorLayout +
-                ", buy=" + buy +
-                '}';
-    }
 }

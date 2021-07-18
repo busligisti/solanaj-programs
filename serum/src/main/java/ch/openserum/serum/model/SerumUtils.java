@@ -32,17 +32,21 @@ import java.util.logging.Logger;
  *
  *   u64('quoteDustThreshold'), 213-220
  *
- *     private PublicKey requestQueue; 221-252
- *     private PublicKey eventQueue; 253-284
+ *   publicKeyLayout('requestQueue'), 221-252
+ *   publicKeyLayout('eventQueue'), 253-284
  *
- *     private PublicKey bids; 285-316
- *     private PublicKey asks; 317-348
+ *   publicKeyLayout('bids'), 285-316
+ *   publicKeyLayout('asks'), 317-348
  *
  *
- *     private long baseLotSize; 349-356
- *     private long quoteLotSize; 357-364
- *     private long feeRateBps; 365-372
- *     private long referrerRebatesAccrued 373-380;
+ *   u64('baseLotSize'), 349-356
+ *   u64('quoteLotSize'), 357-364
+ *
+ *   u64('feeRateBps'), 365-372
+ *
+ *   u64('referrerRebatesAccrued') 373-380
+ *
+ *   blob(7);
  *
  *   ....
  *
@@ -57,30 +61,55 @@ public class SerumUtils {
 
     private static final String PADDING = "serum";
 
+    // Types
+    public static final int U8_SIZE_BYTES = 1;
+    public static final int INT32_SIZE_BYTES = 4;
+    public static final int U64_SIZE_BYTES = 8;
+    public static final int U128_SIZE_BYTES = 16;
+
     // Market
     public static final long LAMPORTS_PER_SOL = 1000000000L;
-    public static final int OWN_ADDRESS_OFFSET = 13;
-    private static final int VAULT_SIGNER_NONCE_OFFSET = 45;
-    private static final int BASE_MINT_OFFSET = 53;
-    private static final int QUOTE_MINT_OFFSET = 85;
-    private static final int BASE_VAULT_OFFSET = 117;
-    private static final int BASE_DEPOSITS_TOTAL_OFFSET = 149;
-    private static final int BASE_FEES_ACCRUED_OFFSET = 157;
-    private static final int QUOTE_VAULT_OFFSET = 165;
-    private static final int QUOTE_DEPOSITS_TOTAL_OFFSET = 197;
-    private static final int QUOTE_FEES_ACCRUED_OFFSET = 205;
-    private static final int QUOTE_DUST_THRESHOLD_OFFSET = 213;
-    private static final int REQUEST_QUEUE_OFFSET = 221;
-    private static final int EVENT_QUEUE_OFFSET = 253;
-    private static final int BIDS_OFFSET = 285;
-    private static final int ASKS_OFFSET = 317;
-    private static final int BASE_LOT_SIZE_OFFSET = 349;
-    private static final int QUOTE_LOT_SIZE_OFFSET = 357;
-    private static final int FEE_RATE_BPS_OFFSET = 365;
-    private static final int REFERRER_REBATES_ACCRUED_OFFSET = 373;
+    private static final int ACCOUNT_FLAGS_SIZE_BYTES = 8;
+    private static final int ACCOUNT_FLAGS_OFFSET = 5;
+    public static final int OWN_ADDRESS_OFFSET = ACCOUNT_FLAGS_OFFSET + ACCOUNT_FLAGS_SIZE_BYTES;
+    private static final int VAULT_SIGNER_NONCE_OFFSET = OWN_ADDRESS_OFFSET + PublicKey.PUBLIC_KEY_LENGTH;
+    private static final int BASE_MINT_OFFSET = VAULT_SIGNER_NONCE_OFFSET + U64_SIZE_BYTES;
+    private static final int QUOTE_MINT_OFFSET = BASE_MINT_OFFSET + PublicKey.PUBLIC_KEY_LENGTH;
+    private static final int BASE_VAULT_OFFSET = QUOTE_MINT_OFFSET + PublicKey.PUBLIC_KEY_LENGTH;
+    private static final int BASE_DEPOSITS_TOTAL_OFFSET = BASE_VAULT_OFFSET + PublicKey.PUBLIC_KEY_LENGTH;
+    private static final int BASE_FEES_ACCRUED_OFFSET = BASE_DEPOSITS_TOTAL_OFFSET + U64_SIZE_BYTES;
+    private static final int QUOTE_VAULT_OFFSET = BASE_FEES_ACCRUED_OFFSET + U64_SIZE_BYTES;
+    private static final int QUOTE_DEPOSITS_TOTAL_OFFSET = QUOTE_VAULT_OFFSET + PublicKey.PUBLIC_KEY_LENGTH;
+    private static final int QUOTE_FEES_ACCRUED_OFFSET = QUOTE_DEPOSITS_TOTAL_OFFSET + U64_SIZE_BYTES;
+    private static final int QUOTE_DUST_THRESHOLD_OFFSET = QUOTE_FEES_ACCRUED_OFFSET + U64_SIZE_BYTES;
+    private static final int REQUEST_QUEUE_OFFSET = QUOTE_DUST_THRESHOLD_OFFSET + U64_SIZE_BYTES;
+    private static final int EVENT_QUEUE_OFFSET = REQUEST_QUEUE_OFFSET + PublicKey.PUBLIC_KEY_LENGTH;
+    private static final int BIDS_OFFSET = EVENT_QUEUE_OFFSET + PublicKey.PUBLIC_KEY_LENGTH;
+    private static final int ASKS_OFFSET = BIDS_OFFSET + PublicKey.PUBLIC_KEY_LENGTH;
+    private static final int BASE_LOT_SIZE_OFFSET = ASKS_OFFSET + PublicKey.PUBLIC_KEY_LENGTH;
+    private static final int QUOTE_LOT_SIZE_OFFSET = BASE_LOT_SIZE_OFFSET + U64_SIZE_BYTES;
+    private static final int FEE_RATE_BPS_OFFSET = QUOTE_LOT_SIZE_OFFSET + U64_SIZE_BYTES;
+    private static final int REFERRER_REBATES_ACCRUED_OFFSET = FEE_RATE_BPS_OFFSET + U64_SIZE_BYTES;
+
+    // New Order
+    private static final int NEW_ORDER_STRUCT_LAYOUT = 10;
+    private static final int NEW_ORDER_INDEX = 1;
+    private static final int SIDE_LAYOUT_INDEX = NEW_ORDER_INDEX + INT32_SIZE_BYTES;
+    private static final int LIMIT_PRICE_INDEX = SIDE_LAYOUT_INDEX + INT32_SIZE_BYTES;
+    private static final int MAX_BASE_QUANTITY_INDEX = LIMIT_PRICE_INDEX + U64_SIZE_BYTES;
+    private static final int MAX_QUOTE_QUANTITY_INDEX = MAX_BASE_QUANTITY_INDEX + U64_SIZE_BYTES;
+    private static final int SELF_TRADE_BEHAVIOR_INDEX = MAX_QUOTE_QUANTITY_INDEX + U64_SIZE_BYTES;
+    private static final int ORDER_TYPE_INDEX = SELF_TRADE_BEHAVIOR_INDEX + INT32_SIZE_BYTES;
+    private static final int CLIENT_ID_INDEX = ORDER_TYPE_INDEX + INT32_SIZE_BYTES;
+    private static final int LIMIT_INDEX = CLIENT_ID_INDEX + U64_SIZE_BYTES;
+
 
     // Token mint
     private static final int TOKEN_MINT_DECIMALS_OFFSET = 44;
+
+    // Open orders account
+    private static final int MARKET_FILTER_OFFSET = 13;
+    private static final int OWNER_FILTER_OFFSET = MARKET_FILTER_OFFSET + PublicKey.PUBLIC_KEY_LENGTH;
 
     public static final PublicKey SERUM_PROGRAM_ID_V3 = new PublicKey("9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin");
     public static final PublicKey WRAPPED_SOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
@@ -162,47 +191,45 @@ public class SerumUtils {
     }
 
     public static void writeNewOrderStructLayout(ByteBuffer result) {
-        int NEW_ORDER_STRUCT_LAYOUT = 10;
-        result.put(1, (byte) NEW_ORDER_STRUCT_LAYOUT);
+        result.put(NEW_ORDER_INDEX, (byte) NEW_ORDER_STRUCT_LAYOUT);
     }
 
     public static void writeSideLayout(ByteBuffer result, SideLayout sideLayout) {
-        result.put(5, (byte) sideLayout.getValue());
+        result.put(SIDE_LAYOUT_INDEX, (byte) sideLayout.getValue());
     }
 
     public static void writeLimitPrice(ByteBuffer result, long price) {
-        result.putLong(9, price);
+        result.putLong(LIMIT_PRICE_INDEX, price);
     }
 
     public static void writeMaxBaseQuantity(ByteBuffer result, long maxBaseQuantity) {
         // 9 + 8 bytes for the 64bit limit price = index 17 (or 16 indexed maybe)
         // lets verify with some real requests
         // looks good, used a quantity of 1, showing as 1
-        result.putLong(17, maxBaseQuantity);
+        result.putLong(MAX_BASE_QUANTITY_INDEX, maxBaseQuantity);
     }
 
     public static void writeMaxQuoteQuantity(ByteBuffer result, long maxQuoteQuantity) {
-        // TODO - name these magic numbers with constants
         // TODO - figure out what this is, for now just write it
-        result.putLong(25, maxQuoteQuantity);
+        result.putLong(MAX_QUOTE_QUANTITY_INDEX, maxQuoteQuantity);
     }
 
 
     // Only need to write the first byte since the enum is small
     public static void writeSelfTradeBehavior(ByteBuffer result, SelfTradeBehaviorLayout selfTradeBehavior) {
-        result.put(33, (byte) selfTradeBehavior.getValue());
+        result.put(SELF_TRADE_BEHAVIOR_INDEX, (byte) selfTradeBehavior.getValue());
     }
 
     public static void writeOrderType(ByteBuffer result, OrderTypeLayout orderTypeLayout) {
-        result.put(37, (byte) orderTypeLayout.getValue());
+        result.put(ORDER_TYPE_INDEX, (byte) orderTypeLayout.getValue());
     }
 
     public static void writeClientId(ByteBuffer result, long clientId) {
-        result.putLong(41, clientId);
+        result.putLong(CLIENT_ID_INDEX, clientId);
     }
 
     public static void writeLimit(ByteBuffer result) {
-        result.putShort(49, (short) 65535);
+        result.putShort(LIMIT_INDEX, (short) 65535);
     }
 
     /**
@@ -279,8 +306,8 @@ public class SerumUtils {
 
         List<ProgramAccount> programAccounts = null;
 
-        Memcmp marketFilter = new Memcmp(OWN_ADDRESS_OFFSET, marketAddress.toBase58());
-        Memcmp ownerFilter = new Memcmp(45, ownerAddress.toBase58()); // TODO remove magic number
+        Memcmp marketFilter = new Memcmp(MARKET_FILTER_OFFSET, marketAddress.toBase58());
+        Memcmp ownerFilter = new Memcmp(OWNER_FILTER_OFFSET, ownerAddress.toBase58());
 
         List<Memcmp> memcmpList = List.of(marketFilter, ownerFilter);
 

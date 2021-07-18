@@ -8,6 +8,11 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 
+import static ch.openserum.serum.model.SerumUtils.U8_SIZE_BYTES;
+import static ch.openserum.serum.model.SerumUtils.INT32_SIZE_BYTES;
+import static ch.openserum.serum.model.SerumUtils.U64_SIZE_BYTES;
+import static ch.openserum.serum.model.SerumUtils.U128_SIZE_BYTES;
+
 
 /**
  * export const ORDERBOOK_LAYOUT = struct([
@@ -84,17 +89,37 @@ import java.util.ArrayList;
 // Takes in bytes following an AccountFlag object.
 public class Slab {
 
-    private static final int INT32_SIZE = 4;
+
 
     // Offsets. TODO put these in their own file
-    // STARTS at 13, since accountflags from the orderbook struct ends there. TODO - refactor this into something sensible
+    // STARTS at 13, since accountflags from the orderbook struct ends there.
 
+    private static final int ZEROS_SIZE = 4;
     private static final int BUMP_INDEX_OFFSET = 13;
-    private static final int FREE_LIST_LEN_OFFSET = 21;
-    private static final int FREE_LIST_HEAD_OFFSET = 29;
-    private static final int ROOT_OFFSET = 33;
-    private static final int LEAF_COUNT_OFFSET = 37;
-    private static final int SLAB_NODE_OFFSET = 45;
+    private static final int FREE_LIST_LEN_OFFSET = BUMP_INDEX_OFFSET + INT32_SIZE_BYTES + ZEROS_SIZE;
+    private static final int FREE_LIST_HEAD_OFFSET = FREE_LIST_LEN_OFFSET + INT32_SIZE_BYTES + ZEROS_SIZE;
+    private static final int ROOT_OFFSET = FREE_LIST_HEAD_OFFSET + INT32_SIZE_BYTES;
+    private static final int LEAF_COUNT_OFFSET = ROOT_OFFSET + INT32_SIZE_BYTES;
+    private static final int SLAB_NODE_OFFSET = LEAF_COUNT_OFFSET + INT32_SIZE_BYTES + ZEROS_SIZE;
+
+    private static final int BLOB_1_SIZE = 68;
+    private static final int SLAB_NODE_SIZE = INT32_SIZE_BYTES + BLOB_1_SIZE;
+    private static final int TAG_OFFSET = 0;
+    private static final int BLOB_1_OFFSET = TAG_OFFSET + INT32_SIZE_BYTES;
+
+    private static final int PREFIX_LEN_OFFSET = 0;
+    private static final int KEY_OFFSET = PREFIX_LEN_OFFSET + INT32_SIZE_BYTES;
+    private static final int FIRST_CHILD_OFFSET = KEY_OFFSET + U128_SIZE_BYTES;
+    private static final int SECOND_CHILD_OFFSET = FIRST_CHILD_OFFSET + INT32_SIZE_BYTES;
+
+    private static final int OWNER_SLOT_OFFSET = 0;
+    private static final int FEE_TIER_OFFSET = OWNER_SLOT_OFFSET + U8_SIZE_BYTES;
+    private static final int KEY2_OFFSET = FEE_TIER_OFFSET + U8_SIZE_BYTES + 2; // 2 empty bytes
+    private static final int SEQ_NUM_OFFSET = 0;
+    private static final int PRICE_OFFSET = SEQ_NUM_OFFSET + U64_SIZE_BYTES;
+    private static final int OWNER_OFFSET = KEY2_OFFSET + U128_SIZE_BYTES;
+    private static final int QUANTITY_OFFSET = OWNER_OFFSET + PublicKey.PUBLIC_KEY_LENGTH;
+    private static final int CLIENT_ORDER_ID_OFFSET = QUANTITY_OFFSET + U64_SIZE_BYTES;
 
     private int bumpIndex;
     private int freeListLen;
@@ -121,11 +146,9 @@ public class Slab {
         int leafCount = slab.readLeafcount(data);
         slab.setLeafCount(leafCount);
 
-        ArrayList<SlabNode> slabNodes = new ArrayList<>();
-        byte[] slabNodeBytes = ByteUtils.readBytes(data, SLAB_NODE_OFFSET, data.length - 45);
+        byte[] slabNodeBytes = ByteUtils.readBytes(data, SLAB_NODE_OFFSET, data.length - SLAB_NODE_OFFSET);
 
-        // TODO - pass in the start of the slabNodes binary instead of start of entire binary
-        slabNodes = slab.readSlabNodes(slabNodeBytes, bumpIndex);
+        ArrayList<SlabNode> slabNodes = slab.readSlabNodes(slabNodeBytes, bumpIndex);
         slab.setSlabNodes(slabNodes);
 
         return slab;
@@ -143,15 +166,15 @@ public class Slab {
         ArrayList<SlabNode> slabNodes = new ArrayList<>();
 
         for (int i = 0; i < bumpIndex; i++) {
-            slabNodes.add(readSlabNode(ByteUtils.readBytes(data, (72 * i), 72)));
+            slabNodes.add(readSlabNode(ByteUtils.readBytes(data, (SLAB_NODE_SIZE * i), SLAB_NODE_SIZE)));
         }
 
         return slabNodes;
     }
 
     public SlabNode readSlabNode(byte[] data) {
-        int tag = readInt32(ByteUtils.readBytes(data, 0, INT32_SIZE));
-        byte[] blob1 = ByteUtils.readBytes(data, 4, 68);
+        int tag = readInt32(ByteUtils.readBytes(data, TAG_OFFSET, INT32_SIZE_BYTES));
+        byte[] blob1 = ByteUtils.readBytes(data, BLOB_1_OFFSET, BLOB_1_SIZE);
         SlabNode slabNode;
 
         if (tag == 0) {
@@ -159,56 +182,56 @@ public class Slab {
             slabNode = null;
         } else if (tag == 1) {
 //            System.out.println("tag 1 detected: innernode");
-            int prefixLen = readInt32(ByteUtils.readBytes(blob1, 0, INT32_SIZE));
+            int prefixLen = readInt32(ByteUtils.readBytes(blob1, PREFIX_LEN_OFFSET, INT32_SIZE_BYTES));
 //            System.out.println("prefixLen = " + prefixLen);
 
             // Only the first prefixLen high-order bits of key are meaningful\
             int numBytesToRead = (int) Math.ceil(prefixLen / 4.00);
 //            System.out.println("size of key (in bytes) = " + numBytesToRead);
 
-            byte[] key = ByteUtils.readBytes(blob1, 4, numBytesToRead);
+            byte[] key = ByteUtils.readBytes(blob1, KEY_OFFSET, numBytesToRead);
 //            System.out.println("key = " + new String(key));
 
-            int child1 = readInt32(ByteUtils.readBytes(blob1, 20, 4));
+            int child1 = readInt32(ByteUtils.readBytes(blob1, FIRST_CHILD_OFFSET, INT32_SIZE_BYTES));
 //            System.out.println("child1 = " + child1);
 
-            int child2 = readInt32(ByteUtils.readBytes(blob1, 24, 4));
+            int child2 = readInt32(ByteUtils.readBytes(blob1, SECOND_CHILD_OFFSET, INT32_SIZE_BYTES));
 //            System.out.println("child2 = " + child2);
 
             slabNode = new SlabInnerNode(prefixLen, key, child1, child2);
         } else if (tag == 2) {
 //            System.out.println("tag 2 detected: leafnode");
-            byte ownerSlot = ByteUtils.readBytes(blob1, 0, 1)[0];
+            byte ownerSlot = ByteUtils.readBytes(blob1, OWNER_SLOT_OFFSET, U8_SIZE_BYTES)[0];
 //            System.out.println("ownerSlot = " + ownerSlot);
-            byte feeTier = ByteUtils.readBytes(blob1, 1, 1)[0];
+            byte feeTier = ByteUtils.readBytes(blob1, FEE_TIER_OFFSET, U8_SIZE_BYTES)[0];
 //            System.out.println("feeTier = " + feeTier);
             // 2 empty bytes
 
             // "(price, seqNum)"
             // key starts at byte 4, u128. u128 = 128 bits = 16 * 8
-            byte[] key = ByteUtils.readBytes(blob1, 4, 16);
+            byte[] key = ByteUtils.readBytes(blob1, KEY2_OFFSET, U128_SIZE_BYTES);
 //            System.out.println("key = " + new String(key));
-            long seqNum = Utils.readInt64(key, 0);
-            long price = Utils.readInt64(key, 8);
+            long seqNum = Utils.readInt64(key, SEQ_NUM_OFFSET);
+            long price = Utils.readInt64(key, PRICE_OFFSET);
 
 //            System.out.println("price = " + price);
 
 
             // Open orders account
-            PublicKey owner = PublicKey.readPubkey(blob1, 20);
+            PublicKey owner = PublicKey.readPubkey(blob1, OWNER_OFFSET);
 //            System.out.println("owner = " + owner.toBase58());
 
             // In units of lot size
-            long quantity = Utils.readInt64(blob1, 52);
+            long quantity = Utils.readInt64(blob1, QUANTITY_OFFSET);
 //            System.out.println("quantity = " + quantity);
 
-            long clientOrderId = Utils.readInt64(blob1, 60);
+            long clientOrderId = Utils.readInt64(blob1, CLIENT_ORDER_ID_OFFSET);
 //            System.out.println("clientOrderId = " + clientOrderId);
 
             slabNode = new SlabLeafNode(ownerSlot, feeTier, key, owner, quantity, clientOrderId, price);
         } else if (tag == 3) {
 //            System.out.println("tag 3 detected: freenode");
-            int next = readInt32(ByteUtils.readBytes(blob1, 0, 4));
+            int next = readInt32(ByteUtils.readBytes(blob1, 0, INT32_SIZE_BYTES));
 //            System.out.println("next = " + next);
 
             slabNode = new SlabInnerNode();
@@ -241,7 +264,7 @@ public class Slab {
     }
 
     private int readLeafcount(byte[] data) {
-        final byte[] bumpIndexBytes = ByteUtils.readBytes(data, LEAF_COUNT_OFFSET, INT32_SIZE);
+        final byte[] bumpIndexBytes = ByteUtils.readBytes(data, LEAF_COUNT_OFFSET, INT32_SIZE_BYTES);
 
         return readInt32(bumpIndexBytes);
     }
@@ -255,7 +278,7 @@ public class Slab {
     }
 
     private int readRoot(byte[] data) {
-        final byte[] bumpIndexBytes = ByteUtils.readBytes(data, ROOT_OFFSET, INT32_SIZE);
+        final byte[] bumpIndexBytes = ByteUtils.readBytes(data, ROOT_OFFSET, INT32_SIZE_BYTES);
 
         return readInt32(bumpIndexBytes);
     }
@@ -269,13 +292,13 @@ public class Slab {
     }
 
     private int readFreeListHead(byte[] data) {
-        final byte[] bumpIndexBytes = ByteUtils.readBytes(data, FREE_LIST_HEAD_OFFSET, INT32_SIZE);
+        final byte[] bumpIndexBytes = ByteUtils.readBytes(data, FREE_LIST_HEAD_OFFSET, INT32_SIZE_BYTES);
 
         return readInt32(bumpIndexBytes);
     }
 
     private int readFreeListLen(byte[] data) {
-        final byte[] bumpIndexBytes = ByteUtils.readBytes(data, FREE_LIST_LEN_OFFSET, INT32_SIZE);
+        final byte[] bumpIndexBytes = ByteUtils.readBytes(data, FREE_LIST_LEN_OFFSET, INT32_SIZE_BYTES);
 
         return readInt32(bumpIndexBytes);
     }
@@ -297,7 +320,7 @@ public class Slab {
     }
 
     private int readBumpIndex(byte[] data) {
-        final byte[] bumpIndexBytes = ByteUtils.readBytes(data, BUMP_INDEX_OFFSET, INT32_SIZE);
+        final byte[] bumpIndexBytes = ByteUtils.readBytes(data, BUMP_INDEX_OFFSET, INT32_SIZE_BYTES);
 
         return readInt32(bumpIndexBytes);
     }

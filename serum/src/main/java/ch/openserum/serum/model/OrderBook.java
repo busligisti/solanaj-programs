@@ -1,5 +1,8 @@
 package ch.openserum.serum.model;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -15,6 +18,8 @@ import java.util.List;
  * buffer_layout_1.blob(7),
  *
  */
+@Getter
+@Setter
 public class OrderBook {
 
     private AccountFlags accountFlags;
@@ -83,55 +88,6 @@ public class OrderBook {
         final ArrayList<Order> orders = getOrders();
         orders.sort(Comparator.comparingLong(Order::getPrice));
         return orders.get(0);
-    }
-
-    public Slab getSlab() {
-        return slab;
-    }
-
-    public void setSlab(Slab slab) {
-        this.slab = slab;
-    }
-
-    public AccountFlags getAccountFlags() {
-        return accountFlags;
-    }
-
-    public void setAccountFlags(AccountFlags accountFlags) {
-        this.accountFlags = accountFlags;
-    }
-
-    public void setBaseDecimals(byte baseDecimals) {
-        this.baseDecimals = baseDecimals;
-    }
-
-    public byte getBaseDecimals() {
-        return baseDecimals;
-    }
-
-    public void setQuoteDecimals(byte quoteDecimals) {
-        this.quoteDecimals = quoteDecimals;
-    }
-
-    public byte getQuoteDecimals() {
-        return quoteDecimals;
-    }
-
-
-    public void setBaseLotSize(long baseLotSize) {
-        this.baseLotSize = baseLotSize;
-    }
-
-    public long getBaseLotSize() {
-        return baseLotSize;
-    }
-
-    public void setQuoteLotSize(long quoteLotSize) {
-        this.quoteLotSize = quoteLotSize;
-    }
-
-    public long getQuoteLotSize() {
-        return quoteLotSize;
     }
 
 }

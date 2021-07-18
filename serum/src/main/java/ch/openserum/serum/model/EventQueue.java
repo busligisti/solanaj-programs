@@ -9,8 +9,9 @@ import org.p2p.solanaj.utils.ByteUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
+
+import static ch.openserum.serum.model.SerumUtils.U64_SIZE_BYTES;
+import static ch.openserum.serum.model.SerumUtils.U128_SIZE_BYTES;
 
 /*
 const EVENT_QUEUE_HEADER = struct([
@@ -62,6 +63,14 @@ public class EventQueue {
     private static final int HEAD_OFFSET = 13;
     private static final int COUNT_OFFSET = 21;
     private static final int SEQ_NUM_OFFSET = 29;
+
+    // event offsets
+    private static final int NATIVE_QUANTITY_RELEASED_OFFSET = 8;
+    private static final int NATIVE_QUANTITY_PAID_OFFSET = NATIVE_QUANTITY_RELEASED_OFFSET + U64_SIZE_BYTES;
+    private static final int NATIVE_FEE_OR_REBATE_OFFSET = NATIVE_QUANTITY_PAID_OFFSET + U64_SIZE_BYTES;
+    private static final int ORDER_ID_OFFSET = NATIVE_FEE_OR_REBATE_OFFSET + U64_SIZE_BYTES;
+    private static final int OPEN_ORDERS_OFFSET = ORDER_ID_OFFSET + U128_SIZE_BYTES;
+    private static final int CLIENT_ORDER_ID_OFFSET = OPEN_ORDERS_OFFSET + PublicKey.PUBLIC_KEY_LENGTH;
 
     private AccountFlags accountFlags;
     private int head;
@@ -129,15 +138,15 @@ public class EventQueue {
 
             // blob = 3-7 - ignore
             // Amount the user received (quantity)
-            long nativeQuantityReleased = ByteUtils.readUint64(eventData, 8).longValue();
+            long nativeQuantityReleased = ByteUtils.readUint64(eventData, NATIVE_QUANTITY_RELEASED_OFFSET).longValue();
 
             // Amount the user paid (price)
-            long nativeQuantityPaid = ByteUtils.readUint64(eventData, 16).longValue();
+            long nativeQuantityPaid = ByteUtils.readUint64(eventData, NATIVE_QUANTITY_PAID_OFFSET).longValue();
 
-            long nativeFeeOrRebate = ByteUtils.readUint64(eventData, 24).longValue();
-            byte[] orderId = Arrays.copyOfRange(eventData, 32, 48);
-            PublicKey openOrders = PublicKey.readPubkey(eventData, 48);
-            long clientOrderId = ByteUtils.readUint64(eventData, 80).longValue();
+            long nativeFeeOrRebate = ByteUtils.readUint64(eventData, NATIVE_FEE_OR_REBATE_OFFSET).longValue();
+            byte[] orderId = Arrays.copyOfRange(eventData, ORDER_ID_OFFSET, OPEN_ORDERS_OFFSET);
+            PublicKey openOrders = PublicKey.readPubkey(eventData, OPEN_ORDERS_OFFSET);
+            long clientOrderId = ByteUtils.readUint64(eventData, CLIENT_ORDER_ID_OFFSET).longValue();
 
             if (fill && nativeQuantityPaid > 0) {
                 TradeEvent tradeEvent = new TradeEvent();
